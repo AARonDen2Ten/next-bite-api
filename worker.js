@@ -84,8 +84,6 @@ export default {
           "1"
         );
 
-        // Pull extra records so we can clean them
-        // before sending the best results to the app.
         searchUrl.searchParams.set(
           "page_size",
           "40"
@@ -138,18 +136,15 @@ export default {
             .map(normalizeProduct)
             .filter(Boolean);
 
-        // Remove exact duplicate database records.
         products =
           removeDuplicates(products);
 
-        // Rank complete, believable records first.
         products.sort(
           (a, b) =>
             getQualityScore(b) -
             getQualityScore(a)
         );
 
-        // Send only the best 20 results.
         products =
           products.slice(0, 20);
 
@@ -306,81 +301,208 @@ function normalizeProduct(product) {
   const n =
     product.nutriments || {};
 
-  let calories =
-    num(
-      n["energy-kcal_100g"]
-    );
-
-  // Some records only provide energy in kJ.
-  if (
-    !calories &&
-    num(n.energy_100g)
-  ) {
-    calories =
-      num(n.energy_100g) /
-      4.184;
-  }
-
-  const protein =
-    num(n.proteins_100g);
-
-  const carbs =
-    num(
-      n.carbohydrates_100g
-    );
-
-  const fat =
-    num(n.fat_100g);
-
-  const fiber =
-    num(n.fiber_100g);
-
-  const sugar =
-    num(n.sugars_100g);
-
-  // OFF generally stores sodium_100g
-  // in grams. NEXT // BITE uses mg.
-  const sodium =
-    num(n.sodium_100g) *
-    1000;
-
-  // Reject records with no useful
-  // nutrition information.
-  if (
-    calories <= 0 &&
-    protein <= 0 &&
-    carbs <= 0 &&
-    fat <= 0
-  ) {
-    return null;
-  }
-
-  // Impossible macro values are usually
-  // bad community-entered records.
-  if (
-    protein > 100 ||
-    carbs > 100 ||
-    fat > 100 ||
-    fiber > 100 ||
-    sugar > 100
-  ) {
-    return null;
-  }
-
-  // Basic calorie sanity check.
-  // Leave plenty of room for rounding,
-  // fiber, sugar alcohols, etc.
-  if (
-    calories < 0 ||
-    calories > 950
-  ) {
-    return null;
-  }
-
   const servingQuantity =
     num(
       product.serving_quantity
     );
+
+  // -------------------------
+  // PER-100G VALUES
+  // -------------------------
+
+  let calories100 =
+    num(
+      n["energy-kcal_100g"]
+    );
+
+  if (
+    !calories100 &&
+    num(n.energy_100g)
+  ) {
+    calories100 =
+      num(n.energy_100g) /
+      4.184;
+  }
+
+  let protein100 =
+    num(n.proteins_100g);
+
+  let carbs100 =
+    num(
+      n.carbohydrates_100g
+    );
+
+  let fat100 =
+    num(n.fat_100g);
+
+  let fiber100 =
+    num(n.fiber_100g);
+
+  let sugar100 =
+    num(n.sugars_100g);
+
+  let sodium100 =
+    num(n.sodium_100g) *
+    1000;
+
+
+  // -------------------------
+  // LABEL SERVING VALUES
+  // -------------------------
+
+  let servingCalories =
+    num(
+      n["energy-kcal_serving"]
+    );
+
+  if (
+    !servingCalories &&
+    num(n.energy_serving)
+  ) {
+    servingCalories =
+      num(n.energy_serving) /
+      4.184;
+  }
+
+  const servingProtein =
+    num(
+      n.proteins_serving
+    );
+
+  const servingCarbs =
+    num(
+      n.carbohydrates_serving
+    );
+
+  const servingFat =
+    num(
+      n.fat_serving
+    );
+
+  const servingFiber =
+    num(
+      n.fiber_serving
+    );
+
+  const servingSugar =
+    num(
+      n.sugars_serving
+    );
+
+  const servingSodium =
+    num(
+      n.sodium_serving
+    ) *
+    1000;
+
+
+  // -------------------------
+  // SERVING DATA WINS
+  // -------------------------
+  //
+  // If Open Food Facts provides nutrition
+  // for the actual label serving, use it to
+  // rebuild the per-100g values.
+  //
+  // This prevents bad per-100g conversions
+  // from turning a 160-calorie shake into
+  // a 520-calorie shake.
+
+  if (
+    servingQuantity > 0
+  ) {
+    const to100 =
+      100 /
+      servingQuantity;
+
+    if (
+      servingCalories > 0
+    ) {
+      calories100 =
+        servingCalories *
+        to100;
+    }
+
+    if (
+      servingProtein > 0
+    ) {
+      protein100 =
+        servingProtein *
+        to100;
+    }
+
+    if (
+      servingCarbs > 0
+    ) {
+      carbs100 =
+        servingCarbs *
+        to100;
+    }
+
+    if (
+      servingFat > 0
+    ) {
+      fat100 =
+        servingFat *
+        to100;
+    }
+
+    if (
+      servingFiber > 0
+    ) {
+      fiber100 =
+        servingFiber *
+        to100;
+    }
+
+    if (
+      servingSugar > 0
+    ) {
+      sugar100 =
+        servingSugar *
+        to100;
+    }
+
+    if (
+      servingSodium > 0
+    ) {
+      sodium100 =
+        servingSodium *
+        to100;
+    }
+  }
+
+
+  // -------------------------
+  // BASIC VALIDATION
+  // -------------------------
+
+  if (
+    calories100 <= 0 &&
+    protein100 <= 0 &&
+    carbs100 <= 0 &&
+    fat100 <= 0
+  ) {
+    return null;
+  }
+
+  if (
+    protein100 > 100 ||
+    carbs100 > 100 ||
+    fat100 > 100 ||
+    fiber100 > 100 ||
+    sugar100 > 100
+  ) {
+    return null;
+  }
+
+  if (
+    calories100 < 0 ||
+    calories100 > 950
+  ) {
+    return null;
+  }
+
 
   const units =
     ["g", "oz"];
@@ -392,6 +514,7 @@ function normalizeProduct(product) {
       "serving"
     );
   }
+
 
   return {
     id:
@@ -425,25 +548,25 @@ function normalizeProduct(product) {
       "g",
 
     calories:
-      round(calories),
+      round(calories100),
 
     protein:
-      round(protein),
+      round(protein100),
 
     carbs:
-      round(carbs),
+      round(carbs100),
 
     fat:
-      round(fat),
+      round(fat100),
 
     fiber:
-      round(fiber),
+      round(fiber100),
 
     sugar:
-      round(sugar),
+      round(sugar100),
 
     sodium:
-      round(sodium),
+      round(sodium100),
 
     units
   };
@@ -453,8 +576,6 @@ function normalizeProduct(product) {
 function getQualityScore(product) {
   let score = 0;
 
-  // A barcode is valuable because it identifies
-  // a specific packaged product.
   if (product.code) {
     score += 4;
   }
@@ -513,7 +634,6 @@ function removeDuplicates(products) {
 
   return products.filter(
     product => {
-      // Barcode is the strongest duplicate key.
       const key =
         product.code
           ? `code:${product.code}`
